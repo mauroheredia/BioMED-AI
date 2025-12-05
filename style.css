@@ -194,6 +194,12 @@ body {
     .background-element {
         display: none;
     }
+    
+    body {
+        /* Asegura que la altura sea correcta para el viewport en móvil */
+        height: 100vh;
+        max-height: 100vh;
+    }
 
     .app-layout {
         width: 100%;
@@ -204,20 +210,17 @@ body {
     
     /* 1. SIDEBAR (Se convierte en un menú deslizable) */
     .sidebar {
-        width: 80%; /* Ocupa la mayor parte del ancho */
+        width: 80%; 
         height: 100vh;
-        position: fixed; /* Superpone el contenido principal */
-        top: 0;
-        left: 0;
-        z-index: 1000;
+        position: fixed; 
+        top: 0; left: 0; z-index: 1000;
         border-radius: 0; 
-        transform: translateX(-100%); /* HIDE: Oculto por defecto fuera de la pantalla */
+        transform: translateX(-100%); 
         transition: transform 0.3s ease-out;
-        border-left: none;
-        border-top: none;
+        border-left: none; border-top: none;
     }
     .sidebar.active {
-        transform: translateX(0); /* SHOW: Desliza para mostrar el menú */
+        transform: translateX(0); 
         box-shadow: 5px 0 15px rgba(0,0,0,0.5);
     }
     
@@ -228,27 +231,29 @@ body {
         border: none;
     }
 
-    /* 3. MENU BUTTON (El icono de tres rayitas) */
-    .mobile-menu-btn {
-        display: block; /* Mostrar el botón en móvil */
-    }
-    
-    .chat-header {
-        /* Se mantiene el display: flex; del desktop */
-        gap: 10px;
-    }
-    .chat-header .model-name {
-        font-size: 0.9rem;
-    }
-    
-    .chat-history {
-        padding: 15px; /* Menos padding en móvil */
-    }
+    /* 3. INPUT AREA (El Fix Principal para teclado) */
     .input-area {
-        padding: 15px;
+        position: fixed; /* CLAVE: Fija el input al fondo de la pantalla */
+        bottom: 0; left: 0; right: 0;
+        z-index: 100;
+        /* Padding para iPhone X y modelos recientes (safe area) */
+        padding-bottom: env(safe-area-inset-bottom, 20px); 
     }
     
-    .message {
-        max-width: 95%; /* Más ancho para aprovechar el espacio */
+    /* 4. CHAT HISTORY (Espacio para que el scroll no tape el input fijo) */
+    .chat-history {
+        /* Añade espacio al fondo equivalente a la altura del input (~90px) */
+        padding-bottom: 90px; 
+        padding-top: 15px;
     }
+    
+    /* 5. MENU BUTTON (El icono de tres rayitas) */
+    .mobile-menu-btn {
+        display: block; 
+    }
+    
+    /* Otras optimizaciones */
+    .chat-header { gap: 10px; }
+    .chat-header .model-name { font-size: 0.9rem; }
+    .message { max-width: 95%; }
 }
