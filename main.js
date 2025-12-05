@@ -5,8 +5,6 @@ import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTim
 // --------------------------------------------------------
 // 1. CONFIGURACIÓN
 // --------------------------------------------------------
-
-// A. Firebase (Tu base de datos)
 const firebaseConfig = {
   apiKey: "AIzaSyDLUnpZYmTn0bRfqvwKQca9wzbfAd0SD-U",
   authDomain: "ia-biomedica.firebaseapp.com",
@@ -16,7 +14,7 @@ const firebaseConfig = {
   appId: "1:228464906184:web:6f317a103a68c9a5efbafd"
 };
 
-// B. LLAMA 3 API KEY (GROQ)
+// ATENCIÓN: Esta clave DEBE ser removida del cliente para despliegues seguros (Netlify/Vercel)
 const GROQ_API_KEY = "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"; 
 
 // --------------------------------------------------------
@@ -25,7 +23,7 @@ const GROQ_API_KEY = "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";
 const SYSTEM_PROMPT = `
 INSTRUCCIÓN GENERAL (CORE PROMPT – BioMed AI v2.0):
 
-Eres **BioMed AI**, un **Ingeniero Bioelectrónico Senior (Argentina)** con maestría en **Metrología**, especializado en soporte técnico REAL de **equipos médicos hospitalarios**. Tu única función es dar asistencia a **Técnicos Biomédicos** que están reparando dispositivos médicos en campo o taller.
+Eres **BioMed AI**, un **Ingeniero Bioelectrónico Master (Argentina)** con maestría en **Metrología**, especializado en soporte técnico REAL de **equipos médicos hospitalarios**. Tu única función es dar asistencia a **Técnicos Biomédicos** que están reparando dispositivos médicos en campo o taller.
 
 ────────────────────────────────────────
 PROTOCOLO DE RESPUESTA (OBLIGATORIO)
@@ -94,14 +92,16 @@ PROTOCOLO DE RESPUESTA (OBLIGATORIO)
    – Profesional.
    – Directo.
    – Nada de emojis salvo el símbolo de advertencia (⚠️) SI corresponda.
-   – Sin cuentos, sin relleno, sin improvisar teoría.
+   – Sin cuentos, sin improvisar teoría.
+   - Si es necesario dar un contexto y explicacion tecnica.
+
 
 8. LO QUE NO DEBES HACER:
    – No inventar partes, voltajes o fallas.
    – No “explicar como a un estudiante”. Estás ayudando a un técnico real.
    – No dar pasos genéricos como “revisa visualmente”, a menos que sea necesario.
    – No diagnosticar sin datos medibles.
-   – No dar información irrelevante ni médica (solo técnica).
+   
 
 ────────────────────────────────────────
 FIN DEL PROMPT
@@ -142,8 +142,6 @@ const refs = {
     sidebarAvatar: document.getElementById('sidebar-avatar'),
     sidebarName: document.getElementById('sidebar-username'),
     btnLogout: document.getElementById('logout-btn-sidebar'),
-    
-    // NUEVO: Para el toggle móvil
     menuToggleBtn: document.getElementById('menu-toggle-btn'),
     sidebar: document.querySelector('.sidebar')
 };
@@ -175,11 +173,17 @@ async function crearNuevoChat() {
 
 function cargarListaDeChats(uid) {
     const q = query(collection(db, `users/${uid}/chats`), orderBy("createdAt", "desc"));
+    
+    // NUEVO: Intentar recuperar el ID del último chat activo guardado
+    const lastChatId = localStorage.getItem('lastActiveChat');
+
     onSnapshot(q, (snapshot) => {
         refs.chatList.innerHTML = '';
         if (snapshot.empty) { crearNuevoChat(); return; }
-
-        let first = true;
+        
+        let wasLastChatFound = false;
+        
+        // Renderizar y buscar el chat activo
         snapshot.forEach(doc => {
             const chat = doc.data();
             const chatId = doc.id;
@@ -190,15 +194,28 @@ function cargarListaDeChats(uid) {
             btn.id = `chat-${chatId}`;
             refs.chatList.appendChild(btn);
             
-            if (first && !currentChatId) seleccionarChat(chatId);
-            first = false;
+            if (chatId === lastChatId) {
+                // Marcar que encontramos el chat guardado
+                wasLastChatFound = true;
+            }
         });
+
+        // LÓGICA DE SELECCIÓN DE CHAT AL CARGAR:
+        if (wasLastChatFound) {
+            seleccionarChat(lastChatId); // Selecciona el chat guardado
+        } else if (!snapshot.empty) {
+            const firstChatId = snapshot.docs[0].id;
+            seleccionarChat(firstChatId); // Selecciona el más reciente
+        }
     });
 }
 
 function seleccionarChat(chatId) {
     if (currentChatId === chatId) return;
     currentChatId = chatId;
+    
+    // NUEVO: Guardar el ID del chat activo en la memoria del navegador
+    localStorage.setItem('lastActiveChat', chatId);
     
     document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
     const activeEl = document.getElementById(`chat-${chatId}`);
@@ -244,7 +261,7 @@ async function sendMessage() {
             timestamp: serverTimestamp()
         });
 
-        // 2. ACTUALIZACIÓN DE TÍTULO
+        // 2. Lógica de Título
         const chatRef = doc(db, `users/${currentUser.uid}/chats/${currentChatId}`);
         const messagesQ = query(collection(db, `users/${currentUser.uid}/chats/${currentChatId}/messages`));
         const messagesSnapshot = await getDocs(messagesQ);
@@ -270,7 +287,8 @@ async function sendMessage() {
             });
         });
 
-        // 4. CONECTAR A GROQ
+        // 4. CONECTAR A GROQ (Proxy)
+        // **NOTA: EN DESPLIEGUES REALES, REEMPLAZAR POR LLAMADA A /api/chat (PROXY SEGURO)**
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -289,6 +307,7 @@ async function sendMessage() {
         });
 
         const data = await response.json();
+        
         if (data.error) throw new Error(data.error.message);
         
         const responseText = data.choices[0].message.content;
@@ -305,7 +324,7 @@ async function sendMessage() {
     } catch (e) { 
         console.error("Error Llama 3:", e);
         refs.loading.classList.add('hidden');
-        appendMessageUI(`Error de IA: ${e.message}. Verifica tu API Key de Groq.`, 'ai');
+        appendMessageUI(`Error de IA: ${e.message}. Recuerda que la llave de Groq no es segura en el cliente (GitHub te avisó).`, 'ai');
     }
 }
 
@@ -334,7 +353,7 @@ refs.btnGoogle.addEventListener('click', () => signInWithPopup(auth, googleProvi
 refs.btnRegister.addEventListener('click', async () => { try { await createUserWithEmailAndPassword(auth, refs.emailInput.value, refs.passInput.value); } catch(e) { refs.errorMsg.innerText = e.message; refs.errorMsg.classList.remove('hidden'); } });
 refs.btnLogin.addEventListener('click', async () => { try { await signInWithEmailAndPassword(auth, refs.emailInput.value, refs.passInput.value); } catch(e) { refs.errorMsg.innerText = "Error de credenciales"; refs.errorMsg.classList.remove('hidden'); } });
 
-// NUEVO: Lógica de Toggle para Móviles
+// Lógica de Toggle para Móviles
 if (refs.menuToggleBtn && refs.sidebar) {
     refs.menuToggleBtn.addEventListener('click', () => {
         refs.sidebar.classList.toggle('active');
