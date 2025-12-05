@@ -3,6 +3,19 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPasswor
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // --------------------------------------------------------
+// 0. FIX DE ALTURA PARA TECLADO MÓVIL (CLAVE PARA EL SCROLL)
+// --------------------------------------------------------
+// Define la variable CSS --vh como 1/100 del alto real de la ventana, sin el teclado.
+function setViewportHeight() {
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+}
+
+window.addEventListener('resize', setViewportHeight);
+window.addEventListener('orientationchange', setViewportHeight);
+setViewportHeight(); // Ejecutar inmediatamente
+
+// --------------------------------------------------------
 // 1. CONFIGURACIÓN
 // --------------------------------------------------------
 const firebaseConfig = {
@@ -14,7 +27,6 @@ const firebaseConfig = {
   appId: "1:228464906184:web:6f317a103a68c9a5efbafd"
 };
 
-// ATENCIÓN: Esta clave DEBE ser removida del cliente para despliegues seguros (Netlify/Vercel)
 const GROQ_API_KEY = "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"; 
 
 // --------------------------------------------------------
@@ -93,8 +105,7 @@ PROTOCOLO DE RESPUESTA (OBLIGATORIO)
    – Directo.
    – Nada de emojis salvo el símbolo de advertencia (⚠️) SI corresponda.
    – Sin cuentos, sin improvisar teoría.
-   - Si es necesario dar un contexto y explicacion tecnica.
-
+   - si es necesaria dar la explicacion debes ser tecnico y explicar con terminos profecionales.
 
 8. LO QUE NO DEBES HACER:
    – No inventar partes, voltajes o fallas.
@@ -143,7 +154,9 @@ const refs = {
     sidebarName: document.getElementById('sidebar-username'),
     btnLogout: document.getElementById('logout-btn-sidebar'),
     menuToggleBtn: document.getElementById('menu-toggle-btn'),
-    sidebar: document.querySelector('.sidebar')
+    sidebar: document.querySelector('.sidebar'),
+    // Overlay para cerrar el menú en móvil
+    sidebarOverlay: document.getElementById('sidebar-overlay')
 };
 
 // --- MONITOR DE ESTADO ---
@@ -174,7 +187,7 @@ async function crearNuevoChat() {
 function cargarListaDeChats(uid) {
     const q = query(collection(db, `users/${uid}/chats`), orderBy("createdAt", "desc"));
     
-    // NUEVO: Intentar recuperar el ID del último chat activo guardado
+    // RECUPERAR: ID del último chat activo
     const lastChatId = localStorage.getItem('lastActiveChat');
 
     onSnapshot(q, (snapshot) => {
@@ -195,7 +208,6 @@ function cargarListaDeChats(uid) {
             refs.chatList.appendChild(btn);
             
             if (chatId === lastChatId) {
-                // Marcar que encontramos el chat guardado
                 wasLastChatFound = true;
             }
         });
@@ -214,7 +226,7 @@ function seleccionarChat(chatId) {
     if (currentChatId === chatId) return;
     currentChatId = chatId;
     
-    // NUEVO: Guardar el ID del chat activo en la memoria del navegador
+    // GUARDAR: el ID del chat activo en la memoria del navegador
     localStorage.setItem('lastActiveChat', chatId);
     
     document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
@@ -287,8 +299,7 @@ async function sendMessage() {
             });
         });
 
-        // 4. CONECTAR A GROQ (Proxy)
-        // **NOTA: EN DESPLIEGUES REALES, REEMPLAZAR POR LLAMADA A /api/chat (PROXY SEGURO)**
+        // 4. CONECTAR A GROQ
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -324,7 +335,7 @@ async function sendMessage() {
     } catch (e) { 
         console.error("Error Llama 3:", e);
         refs.loading.classList.add('hidden');
-        appendMessageUI(`Error de IA: ${e.message}. Recuerda que la llave de Groq no es segura en el cliente (GitHub te avisó).`, 'ai');
+        appendMessageUI(`Error de IA: ${e.message}. (Recuerda que la llave de Groq no es segura en el cliente)`, 'ai');
     }
 }
 
@@ -355,7 +366,14 @@ refs.btnLogin.addEventListener('click', async () => { try { await signInWithEmai
 
 // Lógica de Toggle para Móviles
 if (refs.menuToggleBtn && refs.sidebar) {
+    // 1. Abrir/Cerrar menú
     refs.menuToggleBtn.addEventListener('click', () => {
         refs.sidebar.classList.toggle('active');
+    });
+}
+// 2. Cerrar menú al tocar el overlay (el costadito)
+if (refs.sidebarOverlay) {
+    refs.sidebarOverlay.addEventListener('click', () => {
+        refs.sidebar.classList.remove('active');
     });
 }
