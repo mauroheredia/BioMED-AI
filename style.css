@@ -5,6 +5,8 @@
     --text-dim: #a1a1aa;
     --glass-bg: rgba(20, 20, 25, 0.7);
     --border-color: rgba(255, 255, 255, 0.1);
+    /* VARIABLE PARA ALTURA ESTABLE EN MÓVIL */
+    --vh: 1vh; 
 }
 
 body {
@@ -122,7 +124,7 @@ body {
 /* 2. CHAT INTERFACE */
 .chat-interface { flex: 1; display: flex; flex-direction: column; position: relative; }
 
-/* NUEVO: Botón para mostrar el menú en móvil */
+/* Botón para mostrar el menú en móvil */
 .mobile-menu-btn {
     background: none;
     border: none;
@@ -137,11 +139,11 @@ body {
     padding: 15px 20px; 
     border-bottom: 1px solid var(--border-color); 
     font-weight: 600;
-    display: flex; /* Asegura que el botón y el título estén alineados */
+    display: flex; 
     align-items: center;
 }
 .chat-header .header-info { 
-    flex-grow: 1; /* Permite que el título ocupe el espacio restante */
+    flex-grow: 1; 
 }
 
 
@@ -189,26 +191,48 @@ body {
 /* --- 📱 RESPONSIVE MEDIA QUERIES --- */
 /* ========================================= */
 
+/* ESTILO DEL OVERLAY (Se muestra solo cuando el menú está activo en móvil) */
+.sidebar-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999; 
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none; /* CLAVE: Permite clicks a través de él cuando no está activo */
+}
+
+/* Regla para mostrar el overlay cuando el menú está abierto */
+.sidebar.active ~ .sidebar-overlay {
+    opacity: 1;
+    pointer-events: auto; /* Bloquea el chat principal al estar visible y permite el click */
+}
+
+@media (min-width: 769px) {
+    .sidebar-overlay {
+        display: none !important; /* Nunca mostrar en desktop */
+    }
+}
+
 @media (max-width: 768px) {
-    /* Ocultar barra de fondo que distrae en móvil */
     .background-element {
         display: none;
     }
     
+    /* Usar la altura estable calculada por JS */
     body {
-        /* Asegura que la altura sea correcta para el viewport en móvil */
-        height: 100vh;
+        height: calc(var(--vh, 1vh) * 100);
         max-height: 100vh;
     }
 
     .app-layout {
         width: 100%;
-        height: 100vh;
+        height: calc(var(--vh, 1vh) * 100);
         max-width: none;
         gap: 0;
     }
     
-    /* 1. SIDEBAR (Se convierte en un menú deslizable) */
+    /* 1. SIDEBAR (Menú deslizable) */
     .sidebar {
         width: 80%; 
         height: 100vh;
@@ -233,10 +257,9 @@ body {
 
     /* 3. INPUT AREA (El Fix Principal para teclado) */
     .input-area {
-        position: fixed; /* CLAVE: Fija el input al fondo de la pantalla */
+        position: fixed; 
         bottom: 0; left: 0; right: 0;
         z-index: 100;
-        /* Padding para iPhone X y modelos recientes (safe area) */
         padding-bottom: env(safe-area-inset-bottom, 20px); 
     }
     
