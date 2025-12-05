@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioMed AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="background-element"></div>
+    <div class="background-element secondary"></div>
+
+    <section id="login-screen" class="optical-card login-interface">
+        <div class="login-content">
+            <div class="icon-glow"><i class="ph ph-heartbeat"></i></div>
+            <h2>BioMed Access</h2>
+            <p>Identificación de Personal Técnico</p>
+
+            <button id="google-login-btn" class="solid-btn google-btn">
+                <i class="ph ph-google-logo" style="font-size: 1.2rem; color: #DB4437; font-weight: bold;"></i> 
+                Acceder con Google
+            </button>
+
+            <div class="divider"><span>O ingresa con correo</span></div>
+
+            <div class="email-login-form">
+                <input type="email" id="email-input" class="glass-input" placeholder="Correo electrónico">
+                <input type="password" id="pass-input" class="glass-input" placeholder="Contraseña">
+                
+                <div class="auth-buttons">
+                    <button id="email-login-btn" class="solid-btn primary-btn">Ingresar</button>
+                    <button id="email-register-btn" class="solid-btn secondary-btn">Registrarse</button>
+                </div>
+            </div>
+            <p id="auth-error-msg" class="error-text hidden"></p>
+        </div>
+    </section>
+
+    <div id="app-container" class="app-layout hidden">
+        
+        <aside class="sidebar optical-glass">
+            <div class="sidebar-header">
+                <button id="new-chat-btn" class="new-chat-btn">
+                    <i class="ph ph-plus"></i> Nuevo Chat
+                </button>
+            </div>
+            <div class="sidebar-label">Historial</div>
+            <div id="conversations-list" class="conversations-list">
+                </div>
+            
+            <div class="user-profile-mini">
+                <div id="sidebar-avatar" class="avatar-mini"></div>
+                <div class="user-details">
+                    <span id="sidebar-username" class="username">Cargando...</span>
+                    <button id="logout-btn-sidebar" class="logout-link">Cerrar Sesión</button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="chat-interface optical-glass">
+            <header class="chat-header">
+                <button id="menu-toggle-btn" class="mobile-menu-btn" title="Mostrar historial">
+                    <i class="ph ph-list"></i>
+                </button>
+                <div class="header-info">
+                    <span class="model-name"><i class="ph ph-robot"></i> BioMed AI <strong>v1.0</strong></span>
+                </div>
+            </header>
+
+            <div id="chat-history" class="chat-history">
+                </div>
+
+            <div id="loading-indicator" class="loading hidden">
+                <span>Escribiendo...</span>
+                <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            </div>
+
+            <footer class="input-area">
+                <input type="text" id="user-input" placeholder="Describe el problema del equipo..." autocomplete="off">
+                <button id="send-btn"><i class="ph ph-paper-plane-right"></i></button>
+            </footer>
+        </main>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
