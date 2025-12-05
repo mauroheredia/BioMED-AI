@@ -3,9 +3,8 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPasswor
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // --------------------------------------------------------
-// 0. FIX DE ALTURA PARA TECLADO MÓVIL (CLAVE PARA EL SCROLL)
+// 0. FIX DE ALTURA PARA TECLADO MÓVIL
 // --------------------------------------------------------
-// Define la variable CSS --vh como 1/100 del alto real de la ventana, sin el teclado.
 function setViewportHeight() {
     const vh = window.innerHeight * 0.01;
     document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -13,7 +12,7 @@ function setViewportHeight() {
 
 window.addEventListener('resize', setViewportHeight);
 window.addEventListener('orientationchange', setViewportHeight);
-setViewportHeight(); // Ejecutar inmediatamente
+setViewportHeight();
 
 // --------------------------------------------------------
 // 1. CONFIGURACIÓN
@@ -35,7 +34,7 @@ const GROQ_API_KEY = "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";
 const SYSTEM_PROMPT = `
 INSTRUCCIÓN GENERAL (CORE PROMPT – BioMed AI v2.0):
 
-Eres **BioMed AI**, un **Ingeniero Bioelectrónico Master (Argentina)** con maestría en **Metrología**, especializado en soporte técnico REAL de **equipos médicos hospitalarios**. Tu única función es dar asistencia a **Técnicos Biomédicos** que están reparando dispositivos médicos en campo o taller.
+Eres **BioMed AI**, un **Ingeniero Bioelectrónico Master (Argentina)** con maestría en **biomedicina**, especializado en soporte técnico REAL de **equipos médicos hospitalarios**. Tu única función es dar asistencia a **Técnicos Biomédicos** que están reparando dispositivos médicos en campo o taller.
 
 ────────────────────────────────────────
 PROTOCOLO DE RESPUESTA (OBLIGATORIO)
@@ -105,7 +104,7 @@ PROTOCOLO DE RESPUESTA (OBLIGATORIO)
    – Directo.
    – Nada de emojis salvo el símbolo de advertencia (⚠️) SI corresponda.
    – Sin cuentos, sin improvisar teoría.
-   - si es necesaria dar la explicacion debes ser tecnico y explicar con terminos profecionales.
+   - si es necesario dar explicaciones, en tono profesional y técnico.
 
 8. LO QUE NO DEBES HACER:
    – No inventar partes, voltajes o fallas.
@@ -155,9 +154,43 @@ const refs = {
     btnLogout: document.getElementById('logout-btn-sidebar'),
     menuToggleBtn: document.getElementById('menu-toggle-btn'),
     sidebar: document.querySelector('.sidebar'),
-    // Overlay para cerrar el menú en móvil
     sidebarOverlay: document.getElementById('sidebar-overlay')
 };
+
+// **BANDERA** para asegurar que los listeners solo se inicialicen una vez
+let listenersInitialized = false; 
+
+// --- FUNCIONES DE INICIALIZACIÓN DE LISTENERS (NUEVO BLOQUE) ---
+function initializeListeners() {
+    if (listenersInitialized) return;
+    
+    // LISTENERS DE AUTENTICACIÓN
+    refs.btnGoogle.addEventListener('click', () => signInWithPopup(auth, googleProvider).catch(e => refs.errorMsg.innerText = e.message));
+    refs.btnRegister.addEventListener('click', async () => { try { await createUserWithEmailAndPassword(auth, refs.emailInput.value, refs.passInput.value); } catch(e) { refs.errorMsg.innerText = e.message; refs.errorMsg.classList.remove('hidden'); } });
+    refs.btnLogin.addEventListener('click', async () => { try { await signInWithEmailAndPassword(auth, refs.emailInput.value, refs.passInput.value); } catch(e) { refs.errorMsg.innerText = "Error de credenciales"; refs.errorMsg.classList.remove('hidden'); } });
+    
+    // LISTENERS DE CHAT Y UI
+    refs.newChatBtn.addEventListener('click', crearNuevoChat);
+    refs.sendBtn.addEventListener('click', sendMessage);
+    refs.userInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(); });
+    refs.btnLogout.addEventListener('click', () => { signOut(auth); location.reload(); });
+
+    // Lógica de Toggle para Móviles
+    if (refs.menuToggleBtn && refs.sidebar) {
+        refs.menuToggleBtn.addEventListener('click', () => {
+            refs.sidebar.classList.toggle('active');
+        });
+    }
+    if (refs.sidebarOverlay) {
+        refs.sidebarOverlay.addEventListener('click', () => {
+            refs.sidebar.classList.remove('active');
+        });
+    }
+
+    listenersInitialized = true;
+}
+initializeListeners(); // Llamar una sola vez al inicio del script.
+// -------------------------------------------------------------
 
 // --- MONITOR DE ESTADO ---
 onAuthStateChanged(auth, (user) => {
@@ -166,7 +199,12 @@ onAuthStateChanged(auth, (user) => {
         refs.loginScreen.classList.add('hidden');
         refs.appContainer.classList.remove('hidden');
         cargarPerfilSidebar(user);
-        cargarListaDeChats(user.uid);
+        
+        // FIX: Forzar la creación y selección de un nuevo chat en cada inicio/recarga
+        crearNuevoChat();
+        
+        // Cargar la lista solo para poblar la barra lateral
+        cargarListaDeChats(user.uid); 
     } else {
         currentUser = null;
         refs.loginScreen.classList.remove('hidden');
@@ -177,26 +215,54 @@ onAuthStateChanged(auth, (user) => {
 // --- CHAT SIDEBAR ---
 async function crearNuevoChat() {
     if (!currentUser) return;
-    const newChatRef = await addDoc(collection(db, `users/${currentUser.uid}/chats`), {
-        title: "Nuevo Chat",
-        createdAt: serverTimestamp()
-    });
-    seleccionarChat(newChatRef.id);
+
+    // Indicador de carga manual para la creación del chat
+    refs.chatHistory.innerHTML = '<div class="loading-initial">Creando nueva sesión...</div>';
+    
+    try {
+        const newChatRef = await addDoc(collection(db, `users/${currentUser.uid}/chats`), {
+            title: "Nuevo Chat",
+            createdAt: serverTimestamp()
+        });
+        const newChatId = newChatRef.id;
+
+        // FIX BUG #1: Usar Polling (Reintentos) para esperar que el botón se dibuje en el DOM
+        const MAX_RETRIES = 20; // 1 segundo de espera máxima
+        let retries = 0;
+
+        const waitForChatButton = () => {
+            const chatButton = document.getElementById(`chat-${newChatId}`);
+            
+            if (chatButton) {
+                // ÉXITO
+                seleccionarChat(newChatId);
+                refs.chatHistory.innerHTML = ''; // Limpiar el indicador de creación de chat
+            } else if (retries < MAX_RETRIES) {
+                // Reintentar
+                retries++;
+                setTimeout(waitForChatButton, 50); 
+            } else {
+                // FALLO CRÍTICO (Timeout)
+                seleccionarChat(newChatId); 
+                refs.chatHistory.innerHTML = '';
+                console.error("Timeout: New chat button not rendered after multiple retries.");
+            }
+        };
+        
+        waitForChatButton();
+    } catch (error) {
+        console.error("Error al crear chat:", error);
+        refs.chatHistory.innerHTML = '<div class="error-initial">Error al iniciar chat. Inténtelo de nuevo.</div>';
+    }
 }
 
 function cargarListaDeChats(uid) {
     const q = query(collection(db, `users/${uid}/chats`), orderBy("createdAt", "desc"));
     
-    // RECUPERAR: ID del último chat activo
-    const lastChatId = localStorage.getItem('lastActiveChat');
-
     onSnapshot(q, (snapshot) => {
         refs.chatList.innerHTML = '';
-        if (snapshot.empty) { crearNuevoChat(); return; }
+        if (snapshot.empty) { return; } 
         
-        let wasLastChatFound = false;
-        
-        // Renderizar y buscar el chat activo
         snapshot.forEach(doc => {
             const chat = doc.data();
             const chatId = doc.id;
@@ -206,38 +272,37 @@ function cargarListaDeChats(uid) {
             btn.onclick = () => seleccionarChat(chatId);
             btn.id = `chat-${chatId}`;
             refs.chatList.appendChild(btn);
-            
-            if (chatId === lastChatId) {
-                wasLastChatFound = true;
-            }
         });
-
-        // LÓGICA DE SELECCIÓN DE CHAT AL CARGAR:
-        if (wasLastChatFound) {
-            seleccionarChat(lastChatId); // Selecciona el chat guardado
-        } else if (!snapshot.empty) {
-            const firstChatId = snapshot.docs[0].id;
-            seleccionarChat(firstChatId); // Selecciona el más reciente
-        }
+        // La selección del chat activo ya fue manejada por crearNuevoChat
     });
 }
 
 function seleccionarChat(chatId) {
-    if (currentChatId === chatId) return;
+    if (currentChatId === chatId) {
+        if (window.innerWidth <= 768) {
+             refs.sidebar.classList.remove('active');
+        }
+        return;
+    }
+    
+    // FIX BUG #2: Limpiar la UI inmediatamente ANTES de actualizar la referencia.
+    if (unsubscribeMessages) unsubscribeMessages();
+    refs.chatHistory.innerHTML = ''; 
+    
+    // 1. Actualizar el ID
     currentChatId = chatId;
     
-    // GUARDAR: el ID del chat activo en la memoria del navegador
-    localStorage.setItem('lastActiveChat', chatId);
-    
+    // 2. Actualizar UI (activar nuevo, desactivar viejos)
     document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
     const activeEl = document.getElementById(`chat-${chatId}`);
     if(activeEl) activeEl.classList.add('active');
     
-    // Si estamos en móvil, cerramos el menú al seleccionar un chat
+    // 3. Cerrar menú móvil
     if (window.innerWidth <= 768) {
         refs.sidebar.classList.remove('active');
     }
     
+    // 4. Cargar mensajes del nuevo chat
     cargarMensajes(chatId);
 }
 
@@ -353,27 +418,4 @@ function appendMessageUI(text, sender) {
     let avatarHTML = sender === 'ai' ? `<div class=\"chat-avatar\"><i class=\"ph ph-robot\" style=\"font-size:1.2rem;\"></i></div>` : (currentUser.photoURL ? `<div class=\"chat-avatar\"><img src=\"${currentUser.photoURL}\"></div>` : `<div class=\"chat-avatar\"><i class=\"ph ph-user\"></i></div>`);
     div.innerHTML = `${sender === 'ai' ? avatarHTML : ''}<div class=\"message-content\">${formattedText}</div>${sender === 'user' ? avatarHTML : ''}`;
     refs.chatHistory.appendChild(div);
-}
-
-// LISTENERS
-refs.newChatBtn.addEventListener('click', crearNuevoChat);
-refs.sendBtn.addEventListener('click', sendMessage);
-refs.userInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(); });
-refs.btnLogout.addEventListener('click', () => { signOut(auth); location.reload(); });
-refs.btnGoogle.addEventListener('click', () => signInWithPopup(auth, googleProvider).catch(e => refs.errorMsg.innerText = e.message));
-refs.btnRegister.addEventListener('click', async () => { try { await createUserWithEmailAndPassword(auth, refs.emailInput.value, refs.passInput.value); } catch(e) { refs.errorMsg.innerText = e.message; refs.errorMsg.classList.remove('hidden'); } });
-refs.btnLogin.addEventListener('click', async () => { try { await signInWithEmailAndPassword(auth, refs.emailInput.value, refs.passInput.value); } catch(e) { refs.errorMsg.innerText = "Error de credenciales"; refs.errorMsg.classList.remove('hidden'); } });
-
-// Lógica de Toggle para Móviles
-if (refs.menuToggleBtn && refs.sidebar) {
-    // 1. Abrir/Cerrar menú
-    refs.menuToggleBtn.addEventListener('click', () => {
-        refs.sidebar.classList.toggle('active');
-    });
-}
-// 2. Cerrar menú al tocar el overlay (el costadito)
-if (refs.sidebarOverlay) {
-    refs.sidebarOverlay.addEventListener('click', () => {
-        refs.sidebar.classList.remove('active');
-    });
 }
